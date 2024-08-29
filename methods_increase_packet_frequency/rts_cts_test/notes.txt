@@ -1,0 +1,12 @@
+Sending RTS frames does not work.
+Neither the ESP8266 supports it with wifi_send_pkt_freedom()
+nor the ESP32 with esp_wifi_80211_tx().
+Both methods require the packet to be at least 24 Bytes long. (RTS is 20 Bytes. Padding does not seem to work)
+
+For ESP32 this could work:
+https://github.com/esp32-open-mac/esp32-open-mac
+Compilation with ESP-IDF (v5.0.1!!!) (C:/Espressiv)
+
+-> I tried it and while it is possible to receive control frames (including RTS & CTS)
+   it seems not possible to transmit RTS frames (possibly because they are < 24 Bytes)
+   when doing so all tx slots fill up (which I guess is a sign that they do not get sended)
