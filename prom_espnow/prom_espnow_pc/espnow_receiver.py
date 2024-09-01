@@ -25,7 +25,7 @@ anchor = { # 715 height
 anchors = get_test_anchors()
 
 sim_target_position = (1.0, 1.0)
-simulator = ESPositionMainNodeSimulator(anchors, "100000000000", sim_target_position, True)
+simulator = ESPositionMainNodeSimulator(anchors, "100000000000", sim_target_position, True, True, 100, True)
 
 # plot_monitors(anchors.values())
 
@@ -64,36 +64,40 @@ class PacketItem:
     def __repr__(self):
         return f'PacketItem({self.identification}: {self.timestamp}, {self.rssi})'
 
-tmp = 0
+def message_handler_func():
+    while True:
+        #read data from serial port
+        # line = nodeSerial.readline()
+        line = simulator.readline()
 
-while True:
-    #read data from serial port
-    # line = nodeSerial.readline()
-    line = simulator.readline()
+        #if there is smth do smth
+        if len(line) >= 1:
+            try:
+                timestamp = time.time()
+                line_decoded = line.decode("utf-8")
+                print(line_decoded)
+                match = pattern.match(line_decoded)
+                if match:
+                    monitor_mac = match.group(1)
+                    target_mac = match.group(2)
+                    rssi = float(match.group(3))
+                    print("Received: " + str(monitor_mac) + " "  + str(target_mac) + " "  + str(rssi))
+                    
+                    item = PacketItem(0, timestamp, rssi)
+                    
+                    monitor_dict[target_mac][monitor_mac] = item
+                    print(monitor_dict)
+                else:
+                    print("No match")
+            except Exception as e: 
+                print(e)
+                print("could not decode")
 
-    #if there is smth do smth
-    if len(line) >= 1:
-        try:
-            timestamp = time.time()
-            line_decoded = line.decode("utf-8")
-            print(line_decoded)
-            match = pattern.match(line_decoded)
-            if match:
-                monitor_mac = match.group(1)
-                target_mac = match.group(2)
-                rssi = float(match.group(3))
-                print("Received: " + str(monitor_mac) + " "  + str(target_mac) + " "  + str(rssi))
-                
-                item = PacketItem(0, timestamp, rssi)
-                
-                monitor_dict[target_mac][monitor_mac] = item
-                print(monitor_dict)
-            else:
-                print("No match")
-        except Exception as e: 
-            print(e)
-            print("could not decode")
-    
+message_thread = threading.Thread(target=message_handler_func, daemon=True)
+message_thread.start()
+
+
+while True:    
     for target_mac in monitor_dict:
         if len(monitor_dict[target_mac].keys()) < 3:
             continue
@@ -106,8 +110,3 @@ while True:
         print(target_mac + ": " + str(target_position))
         
         plot_results(anchor_positions, distances, target_position, simulator.get_target_pos())
-        time.sleep(1)
-        
-        tmp = tmp + 1
-        if tmp % 3 == 0:
-            simulator.move()
