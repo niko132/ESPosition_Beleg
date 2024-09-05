@@ -6,8 +6,8 @@ ENVIRONMENTS = {
 
 CURRENT_ENV = "flat"
 
-PATH_LOSS_L0 = -45.0
-PATH_LOSS_EXP = 3.0
+PATH_LOSS_L0 = -45.0 # -45.0
+PATH_LOSS_EXP = 4.5 # 3.0
 
 def get_env_background_filename():
     (filename, _) = ENVIRONMENTS[CURRENT_ENV]

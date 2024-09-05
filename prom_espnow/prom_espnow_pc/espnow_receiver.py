@@ -22,10 +22,13 @@ anchor = { # 715 height
     "000000000005": (60, 30), # ´(60, 30)
 }
 '''
-anchors = get_test_anchors()
+# anchors = get_test_anchors()
 
-sim_target_position = (1.0, 1.0)
-simulator = ESPositionMainNodeSimulator(anchors, "100000000000", sim_target_position, True, True, 100, True)
+# sim_target_position = (1.0, 1.0)
+# simulator = ESPositionMainNodeSimulator(anchors, "100000000000", sim_target_position, True, True, 100, True)
+
+playback = ESPositionMainNodePlayback("342eb61ec446", "./recordings/2024_09_05_17_50_22_walk_through_flat.csv")
+anchors = playback.get_anchors()
 
 # plot_monitors(anchors.values())
 
@@ -68,7 +71,8 @@ def message_handler_func():
     while True:
         #read data from serial port
         # line = nodeSerial.readline()
-        line = simulator.readline()
+        # line = simulator.readline()
+        line = playback.readline()
 
         #if there is smth do smth
         if len(line) >= 1:
@@ -109,4 +113,5 @@ while True:
         target_position = trilaterate(anchor_positions, distances)
         print(target_mac + ": " + str(target_position))
         
-        plot_results(anchor_positions, distances, target_position, simulator.get_target_pos())
+        # plot_results(anchor_positions, distances, target_position, simulator.get_target_pos())
+        plot_results(anchor_positions, distances, target_position)
