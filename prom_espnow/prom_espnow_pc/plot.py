@@ -31,7 +31,7 @@ def plot_monitors(positions):
 
     plt.show()
     
-def plot_results(anchor_positions_in_m, distances_in_m, target_position_in_m, gt_position_in_m = None):
+def plot_results(anchor_positions_in_m, distances_in_m, target_positions_in_m, labels, gt_position_in_m = None):
     global fig, ax
     
     ax.clear()
@@ -59,15 +59,20 @@ def plot_results(anchor_positions_in_m, distances_in_m, target_position_in_m, gt
 
             # Add the patch to the Axes
             ax.add_patch(circle)
+    
+    handles = [patches.Patch(facecolor='C' + str(idx), label=label) for idx, label in enumerate(labels)]
+    ax.legend(handles=handles)
 
-    if target_position_in_m is not None:
-        target_position_in_px = (env_to_px(target_position_in_m[0]), env_to_px(target_position_in_m[1]))
-        
-        # Create a Circle patch
-        circle = patches.Circle(target_position_in_px, 10, linewidth=1, edgecolor='b', facecolor='b')
+    if target_positions_in_m is not None:
+        for index, target_position_in_m in enumerate(target_positions_in_m):
+            target_position_in_px = (env_to_px(target_position_in_m[0]), env_to_px(target_position_in_m[1]))
+            
+            # Create a Circle patch
+            color = 'C' + str(index)
+            circle = patches.Circle(target_position_in_px, 10, linewidth=1, edgecolor=color, facecolor=color)
 
-        # Add the patch to the Axes
-        ax.add_patch(circle)
+            # Add the patch to the Axes
+            ax.add_patch(circle)
 
     if gt_position_in_m is not None:
         gt_position_in_px = (env_to_px(gt_position_in_m[0]), env_to_px(gt_position_in_m[1]))

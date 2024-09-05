@@ -107,11 +107,13 @@ while True:
             continue
         
         anchor_positions = [anchors[monitor_mac] for monitor_mac in monitor_dict[target_mac].keys()]
-        distances = [inverse_path_loss_model(monitor_dict[target_mac][monitor_mac].rssi) for monitor_mac in monitor_dict[target_mac].keys()]
+        rssis = [monitor_dict[target_mac][monitor_mac].rssi for monitor_mac in monitor_dict[target_mac].keys()]
+        distances = [inverse_path_loss_model(rssi) for rssi in rssis]
         
         # TODO: adjustable algorithm
-        target_position = trilaterate(anchor_positions, distances)
-        print(target_mac + ": " + str(target_position))
+        target_position_tri = trilaterate(anchor_positions, rssis)
+        target_position_wcl = weighted_centroid_localization(anchor_positions, rssis)
+        print(target_mac + ": " + str(target_position_tri))
         
         # plot_results(anchor_positions, distances, target_position, simulator.get_target_pos())
-        plot_results(anchor_positions, distances, target_position)
+        plot_results(anchor_positions, distances, (target_position_tri, target_position_wcl), ("Tri", "WCL"))
