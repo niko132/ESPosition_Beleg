@@ -7,6 +7,7 @@ from plot import *
 from util import *
 from simulation import *
 from localization import *
+from aggregation import *
 
 plot_init()
 
@@ -49,24 +50,6 @@ pattern = re.compile("^([0-9A-Fa-f]{12})_([0-9A-Fa-f]{12}):(-?[0-9]+\.?[0-9]*)$"
 
 monitor_dict = defaultdict(dict)
 
-class PacketItem:
-    identification: int
-    timestamp: float
-    rssi: float
-    
-    def __init__(
-            self,
-            identification: int,
-            timestamp: float,
-            rssi: int
-        ) -> None:
-        self.identification = identification
-        self.timestamp = timestamp
-        self.rssi = rssi
-        
-    def __repr__(self):
-        return f'PacketItem({self.identification}: {self.timestamp}, {self.rssi})'
-
 def message_handler_func():
     while True:
         #read data from serial port
@@ -89,7 +72,16 @@ def message_handler_func():
                     
                     item = PacketItem(0, timestamp, rssi)
                     
-                    monitor_dict[target_mac][monitor_mac] = item
+                    try:
+                        _ = monitor_dict[target_mac][monitor_mac]
+                    except KeyError:
+                        monitor_dict[target_mac][monitor_mac] = MostRecentPacketAggregation()
+                    
+                    monitor_dict[target_mac][monitor_mac].add_packet(item)
+                    
+                    # plot_graph(monitor_mac, rssi)
+                    # plot_graph(monitor_mac + "_filtered", monitor_dict[target_mac][monitor_mac].get_packet().rssi)
+                    
                     print(monitor_dict)
                 else:
                     print("No match")
@@ -107,7 +99,7 @@ while True:
             continue
         
         anchor_positions = [anchors[monitor_mac] for monitor_mac in monitor_dict[target_mac].keys()]
-        rssis = [monitor_dict[target_mac][monitor_mac].rssi for monitor_mac in monitor_dict[target_mac].keys()]
+        rssis = [monitor_dict[target_mac][monitor_mac].get_packet().rssi for monitor_mac in monitor_dict[target_mac].keys()]
         distances = [inverse_path_loss_model(rssi) for rssi in rssis]
         
         # TODO: adjustable algorithm
