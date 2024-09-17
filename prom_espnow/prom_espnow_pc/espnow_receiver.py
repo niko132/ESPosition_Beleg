@@ -75,7 +75,7 @@ def message_handler_func():
                     try:
                         _ = monitor_dict[target_mac][monitor_mac]
                     except KeyError:
-                        monitor_dict[target_mac][monitor_mac] = MostRecentPacketAggregation()
+                        monitor_dict[target_mac][monitor_mac] = KalmanFilterPacketAggregation()
                     
                     monitor_dict[target_mac][monitor_mac].add_packet(item)
                     

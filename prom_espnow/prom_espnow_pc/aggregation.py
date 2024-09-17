@@ -85,7 +85,7 @@ class KalmanFilter:
 class KalmanFilterPacketAggregation(PacketAggregation):
 
     def __init__(self):
-        self.kalman_filter = KalmanFilter(process_variance=1e-3, measurement_variance=1.0, estimated_measurement=-50.0)
+        self.kalman_filter = KalmanFilter(process_variance=1e-3, measurement_variance=10.0, estimated_measurement=-50.0)
 
     def add_packet(self, packetItem):
         self.filtered_rssi = self.kalman_filter.update(packetItem.rssi)  # Smooth the adjusted RSSI value
