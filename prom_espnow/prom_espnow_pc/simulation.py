@@ -128,7 +128,6 @@ class ESPositionMainNodePlayback:
         anchor_positions = {}
         
         for index, row in df_unique_monitors.iterrows():
-            message = f"{row['monitor_mac']}_{row['target_mac']}:{row['rssi']}".encode("utf-8")
             anchor_positions[row['monitor_mac']] = (float(row['anchor_position_x']), float(row['anchor_position_y']))
         
         return anchor_positions
