@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import numpy as np
 
-filepath = "./calibrations/2024_09_22_02_07_16.csv"
+filepath = "./calibrations/2024_09_22_13_52_00_distance_1_to_8_m_corridor_bedroom.csv"
 
 df = pd.read_csv(filepath, index_col=False)
 

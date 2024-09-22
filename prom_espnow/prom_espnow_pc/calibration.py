@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 try:
-    nodeSerial = serial.Serial('COM5', 115200, timeout=1)
+    nodeSerial = serial.Serial('COM6', 115200, timeout=1)
 except:
     print("Error opening serial port")
 
