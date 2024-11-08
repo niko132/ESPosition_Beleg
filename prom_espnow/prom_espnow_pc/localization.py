@@ -58,7 +58,7 @@ class TrilaterationLeastSquaresLocalization(AbstractLocalization):
         super().set_position(x)
         
         if self.plotter is not None:
-            self.plotter.target_estimation["trilateration_ls"] = self.position
+            self.plotter.target_estimation["tri_ls"] = self.position
             self.plotter.anchor_positions = positions
             self.plotter.anchor_distances = distances
             self.plotter.new_data_available = True
@@ -96,7 +96,7 @@ class TrilaterationWeightedCentroidLocalization(AbstractLocalization):
         super().set_position((x, y))
         
         if self.plotter is not None:
-            self.plotter.target_estimation["trilateration_wcl"] = self.position
+            self.plotter.target_estimation["tri_wcl"] = self.position
             self.plotter.anchor_positions = positions
             self.plotter.anchor_distances = distances
             self.plotter.new_data_available = True
@@ -157,7 +157,7 @@ class FingerprintingLocalization(AbstractLocalization):
         
         if self.plotter is not None:
             self.plotter.heatmap = norm
-            self.plotter.target_estimation["fingerprint"] = self.position
+            self.plotter.target_estimation["fp"] = self.position
             self.plotter.new_data_available = True
         
         return self.position

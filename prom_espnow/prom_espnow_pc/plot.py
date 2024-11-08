@@ -172,7 +172,9 @@ class RealtimePlotter:
             for circle in self.plt_anchor_dists:
                 self.ax.add_patch(circle)
             
-            return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_pos, *self.plt_anchor_dists
+            self.annotations = [self.ax.annotate('annotation', xy=(0,0), xytext=(0,0), ha='center') for _ in range(3)]
+            
+            return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_pos, *self.plt_anchor_dists, *self.annotations
         
         def update(frame):
             if self.new_data_available:
@@ -189,9 +191,13 @@ class RealtimePlotter:
                     self.plt_anchor_dists[i].set_center(self.anchor_positions[i])
                     self.plt_anchor_dists[i].set_radius(self.anchor_distances[i])
                 
+                for i, key in enumerate(self.target_estimation.keys()):
+                    self.annotations[i].set_position((self.target_estimation[key][0], self.target_estimation[key][1] - 20))
+                    self.annotations[i].set_text(key)
+                
                 self.new_data_available = False  # Reset the flag
 
-            return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_pos, *self.plt_anchor_dists
+            return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_pos, *self.plt_anchor_dists, *self.annotations
         
         # Use the FuncAnimation with blitting for speedup
         ani = animation.FuncAnimation(self.fig, update, init_func=init, blit=True, interval=20)
