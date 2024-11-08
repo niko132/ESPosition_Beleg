@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.pyplot as pp
+import matplotlib.animation as animation
 import numpy as np
 from config import *
 
@@ -10,10 +12,11 @@ graph_fig = None
 graph_ax = None
 graph_data = {}
 
+
 def plot_init():
     global vis_fig, vis_ax, graph_fig, graph_ax
     
-    plt.ion()
+    # plt.ion()
 
     # Create vis_figure and vis_axes
     vis_fig, vis_ax = plt.subplots()
@@ -39,8 +42,16 @@ def plot_monitors(positions):
 
     plt.show()
     
-def plot_results(anchor_positions_in_m, distances_in_m, target_positions_in_m, labels, gt_position_in_m = None):
+def plot_results(anchor_positions_in_m_dict, distances_in_m_dict, target_positions_in_m, labels, gt_position_in_m = None):
     global vis_fig, vis_ax
+    
+    anchor_positions_in_m = []
+    distances_in_m = []
+    
+    # TODO: better take the intersection set of rssis mac & anchor_positions mac
+    for monitor_mac in anchor_positions_in_m_dict:
+        anchor_positions_in_m.append(anchor_positions_in_m_dict[monitor_mac])
+        distances_in_m.append(distances_in_m_dict[monitor_mac])
     
     vis_ax.clear()
     
@@ -115,3 +126,74 @@ def plot_graph(identifier, new_y):
 
     graph_fig.canvas.draw()
     graph_fig.canvas.flush_events()
+
+
+
+
+
+class RealtimePlotter:
+    def __init__(self):
+        self.background = get_scaled_env_background_image()
+        self.background_width = self.background.size[0]
+        self.background_height = self.background.size[1]
+        
+        self.heatmap_width = int(self.background.size[0] / 4)
+        self.heatmap_height = int(self.background.size[1] / 4)
+    
+        self.cmap = pp.get_cmap('RdYlBu_r')
+        
+        self.heatmap = np.zeros((self.heatmap_height, self.heatmap_width))
+        self.anchor_positions = []
+        self.anchor_distances = []
+        self.target_estimation = {}
+        self.new_data_available = False
+    
+    def helper_unpack_coordinates(self, coordinate_list):
+        if coordinate_list:
+            x_coords, y_coords = zip(*coordinate_list)
+            return x_coords, y_coords
+        else:
+            return [], []
+    
+    def start_plotting(self):
+        self.fig, self.ax = plt.subplots()
+        
+        self.plt_bg = self.ax.imshow(self.background)
+        
+        def init():
+            self.plt_heatmap = self.ax.imshow(self.heatmap,
+                alpha=0.3, zorder=100,
+                cmap=self.cmap, extent=(0, self.background_width, self.background_height, 0)
+            )
+            self.plt_anchor_pos, = self.ax.plot([], [], 'bo', markersize=8, zorder=101)
+            self.plt_target_pos, = self.ax.plot([], [], 'ro', markersize=8, zorder=102)
+            
+            self.plt_anchor_dists = [patches.Circle((0.0, 0.0), radius=0.1, fill=False) for _ in range(4)]
+            for circle in self.plt_anchor_dists:
+                self.ax.add_patch(circle)
+            
+            return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_pos, *self.plt_anchor_dists
+        
+        def update(frame):
+            if self.new_data_available:
+                # Update the heatmap and marker with new data
+                self.plt_heatmap.set_data(self.heatmap)
+                
+                anchor_positions_x, anchor_positions_y = self.helper_unpack_coordinates(self.anchor_positions)
+                self.plt_anchor_pos.set_data(list(anchor_positions_x), list(anchor_positions_y))
+                
+                target_estimation_x, target_estimation_y = self.helper_unpack_coordinates(self.target_estimation.values())
+                self.plt_target_pos.set_data(list(target_estimation_x), list(target_estimation_y))
+                
+                for i in range(len(self.anchor_distances)):
+                    self.plt_anchor_dists[i].set_center(self.anchor_positions[i])
+                    self.plt_anchor_dists[i].set_radius(self.anchor_distances[i])
+                
+                self.new_data_available = False  # Reset the flag
+
+            return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_pos, *self.plt_anchor_dists
+        
+        # Use the FuncAnimation with blitting for speedup
+        ani = animation.FuncAnimation(self.fig, update, init_func=init, blit=True, interval=20)
+        
+        plt.show()

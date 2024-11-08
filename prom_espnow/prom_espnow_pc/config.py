@@ -6,8 +6,10 @@ ENVIRONMENTS = {
 
 CURRENT_ENV = "flat"
 
-PATH_LOSS_L0 = -45.0 # -45.0
-PATH_LOSS_EXP = 4.5 # 3.0
+#PATH_LOSS_L0 = -45.0 # -45.0
+#PATH_LOSS_EXP = 4.5 # 3.0
+PATH_LOSS_L0 = -50.0 # -45.0
+PATH_LOSS_EXP = 3.5 # 3.0
 
 def get_env_background_filename():
     (filename, _) = ENVIRONMENTS[CURRENT_ENV]
@@ -27,3 +29,9 @@ def env_to_m(dim_in_px):
     background = get_env_background_image()
     (width_in_px, _) = background.size
     return width_in_m / width_in_px * dim_in_px
+
+def get_scaled_env_background_image():
+    background = get_env_background_image()
+    # scale so that 1px = 1cm
+    new_size = (int(background.size[0] * env_to_m(100)), int(background.size[1] * env_to_m(100)))
+    return background.resize(new_size, Image.LANCZOS)
