@@ -1,11 +1,10 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <espnow.h>
-#include <SimpleKalmanFilter.h>
-
 extern "C" {
   #include <user_interface.h>
 }
+
+#define MAX_PACKETS 5000
 
 /*
   TYPE DEFINITIONS
@@ -57,11 +56,11 @@ typedef struct {
 	uint8_t payload[0]; /* network data ended with 4 bytes csum (CRC32) */
 } wifi_ieee80211_packet_t;
 
+// Structure to hold packet information
 typedef struct {
-  uint8_t srcMac[6];
-  double rssiSum;
-  size_t rssiCnt;
-} rssi_aggregation;
+  unsigned long timestamp;
+  int rssi;
+} PacketInfo;
 
 /*
   METHOD DEFINITIONS
@@ -70,37 +69,32 @@ void initWifi();
 
 void getPacketSender(const wifi_ieee80211_packet_t *ipkt, uint8_t *macBuf);
 bool macEquals(const uint8_t *mac1, const uint8_t *mac2);
-void printMac(const uint8_t *mac);
 
 void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type);
-void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus);
 
 /*
   CONST VARIABLES
 */
 const int WIFI_CHANNEL = 1;
-const uint8_t MAC_ESP_NOW[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-// const uint8_t MAC_POS_TARGET[] = { 0x34, 0x2e, 0xb6, 0x1e, 0xc4, 0x46 };
-const uint8_t MAC_POS_TARGET[] = { 0xda, 0x9e, 0xc7, 0xf5, 0x5b, 0xeb };
+// const uint8_t TARGET_MAC[] = { 0x34, 0x2e, 0xb6, 0x1e, 0xc4, 0x46 };
+const uint8_t TARGET_MAC[] = { 0xDA, 0x9E, 0xC7, 0xF5, 0x5B, 0xEB };
+const unsigned long DURATION_MILLIS = 1 * 10 * 1000; // 1min // TODO: change to 60s again
 
 /*
   GLOBAL VARIABLES
 */
-uint8_t lastMac[6];
-int lastRssi = 0;
-bool isDirty = false;
+// Array to store packet information
+PacketInfo packets[MAX_PACKETS];
+unsigned int packetCount = 0;
+// Start time for capturing packets
+unsigned long startMillis;
+bool isRunning = false;
 
 void initWifi() {
   // init wifi
   wifi_set_opmode(STATION_MODE);
   wifi_set_channel(WIFI_CHANNEL);
   wifi_promiscuous_enable(0);
-
-  // init esp now
-  esp_now_init();
-  esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
-  esp_now_register_send_cb(esp_now_send_cb_t(espNowDataSentCallback));
-  esp_now_add_peer((uint8_t*)MAC_ESP_NOW, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
 
   // init promiscuous mode
   wifi_set_promiscuous_rx_cb(promiscuousCallback);
@@ -117,67 +111,56 @@ bool macEquals(const uint8_t *mac1, const uint8_t *mac2) {
   return memcmp(mac1, mac2, 6) == 0;
 }
 
-void printMac(const uint8_t *mac) {
-  Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-}
-
 
 void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type) {
+  unsigned long nowMillis = millis();
+
+  if (!isRunning || packetCount >= MAX_PACKETS)
+    return;
+
   const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buffer;
   const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
   int rssi = ppkt->rx_ctrl.rssi;
-  uint8_t macSender[6];
-  getPacketSender(ipkt, macSender);
+  uint8_t senderMac[6];
+  getPacketSender(ipkt, senderMac);
 
-  if (!macEquals(macSender, MAC_POS_TARGET))
+  if (!macEquals(senderMac, TARGET_MAC))
     return;
   
-  memcpy(lastMac, macSender, 6);
-  lastRssi = rssi;
-  isDirty = true;
-}
-
-void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus) {
-  Serial.print("ESP NOW: send to ");
-  printMac(dstMac);
-  if (sendStatus == 0)
-    Serial.println(" successful");
-  else
-    Serial.println(" failed");
-}
-
-void sendRssiData() {
-  uint8_t buffer[7]; // 6 for mac + 1 for rssi
-  memcpy(buffer, lastMac, 6);
-  buffer[6] = (uint8_t) -lastRssi; // RSSI should be between [-100,0]
-
-  esp_now_send((uint8_t*)MAC_ESP_NOW, buffer, sizeof(buffer));
+  packets[packetCount].timestamp = nowMillis;
+  packets[packetCount].rssi = rssi;
+  packetCount++;
 }
 
 
 void setup() {
   Serial.begin(115200);
-  
   Serial.println();
-  Serial.print("ESP Board MAC Address:  ");
-  Serial.println(WiFi.macAddress());
 
   initWifi();
-}
 
-unsigned long lastSentMillis = 0;
+  Serial.printf("Press any key to start monitoring (%ds)\n", DURATION_MILLIS / 1000);
+}
 
 void loop() {
   unsigned long nowMillis = millis();
 
-  /*
-  if (nowMillis - lastSentMillis > 1000) {
-    sendRssiData();
-    lastSentMillis = nowMillis;
+  if (!isRunning && Serial.available() > 0) {
+    while (Serial.available() > 0) {
+      Serial.readString();
+    }
+    startMillis = nowMillis;
+    isRunning = true;
   }
-  */
-  if (isDirty) {
-    sendRssiData();
-    isDirty = false;
+
+  if (isRunning && nowMillis - startMillis >= DURATION_MILLIS) {
+    // Send captured data over serial
+    Serial.printf("Timestamp,RSSI\n");
+    for (int i = 0; i < packetCount; i++) {
+      Serial.printf("%lu,%d\n", packets[i].timestamp, packets[i].rssi);
+    }
+
+    packetCount = 0;  // Reset packet count
+    isRunning = false;
   }
 }
