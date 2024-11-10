@@ -6,9 +6,9 @@ from util import *
 
 class AbstractLocalization(ABC):
 
-    def __init__(self):
+    def __init__(self, smooth=True):
         self.position = np.array((0.0, 0.0))
-        self.smooth = True
+        self.smooth = smooth
 
     @abstractmethod
     def localize(self, rssis):
@@ -17,11 +17,13 @@ class AbstractLocalization(ABC):
     def set_position(self, position):
         if self.smooth:
             self.position = 0.99 * self.position + 0.01 * np.array(position)
+        else:
+            self.position = position
         return self.position
 
 class TrilaterationLeastSquaresLocalization(AbstractLocalization):
-    def __init__(self, anchor_positions, plotter=None):
-        super().__init__()
+    def __init__(self, anchor_positions, smooth=True, plotter=None):
+        super().__init__(smooth)
         
         self.anchor_positions = anchor_positions
         self.plotter = plotter
@@ -66,8 +68,8 @@ class TrilaterationLeastSquaresLocalization(AbstractLocalization):
         return self.position
 
 class TrilaterationWeightedCentroidLocalization(AbstractLocalization):
-    def __init__(self, anchor_positions, plotter=None):
-        super().__init__()
+    def __init__(self, anchor_positions, smooth=True, plotter=None):
+        super().__init__(smooth)
         
         self.anchor_positions = anchor_positions
         self.plotter = plotter
@@ -104,8 +106,8 @@ class TrilaterationWeightedCentroidLocalization(AbstractLocalization):
         return self.position
 
 class FingerprintingLocalization(AbstractLocalization):
-    def __init__(self, fingerprints_file_path, background_size, heatmap_resolution=5.0, plotter=None): # every 5cm
-        super().__init__()
+    def __init__(self, fingerprints_file_path, background_size, heatmap_resolution=5.0, smooth=True, plotter=None): # every 5cm
+        super().__init__(smooth)
         
         self.plotter = plotter
         
@@ -148,7 +150,7 @@ class FingerprintingLocalization(AbstractLocalization):
         interpolated_fingerprints_intersection = np.array([self.interpolated_fingerprints[monitor_mac] for monitor_mac in monitor_macs_intersection])
         rssis_intersection = np.array([rssis[monitor_mac] for monitor_mac in monitor_macs_intersection])
         
-        diff = np.moveaxis(interpolated_fingerprints_intersection, 0, -1) - rssis_intersection
+        diff = np.moveaxis(interpolated_fingerprints_intersection, 0, -1) - rssis_intersection        
         norm = np.linalg.norm(diff, axis=2)
         min_pos_heatmap = np.unravel_index(np.argmin(norm, axis=None), norm.shape)        
         min_pos = (self.pos_lookup_x[min_pos_heatmap[1]], self.pos_lookup_y[min_pos_heatmap[0]])
