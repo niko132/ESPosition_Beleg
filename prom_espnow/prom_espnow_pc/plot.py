@@ -3,6 +3,8 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as pp
 import matplotlib.animation as animation
 import numpy as np
+import hashlib
+import colorsys
 from config import *
 
 vis_fig = None
@@ -127,12 +129,23 @@ def plot_graph(identifier, new_y):
     graph_fig.canvas.draw()
     graph_fig.canvas.flush_events()
 
+def mac_to_color(mac, saturation=0.7, lightness=0.5):
+    # Hash the MAC address to get a deterministic hue
+    hash_obj = hashlib.md5(mac.encode('utf-8'))
+    hash_digest = hash_obj.hexdigest()
 
+    # Use part of the hash to determine the hue (between 0 and 1)
+    hue = int(hash_digest[:2], 16) / 255.0  # First byte for hue
 
+    # Convert HSL to RGB
+    r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+
+    # Return as RGBA tuple
+    return (r, g, b, 1.0)
 
 
 class RealtimePlotter:
-    def __init__(self):
+    def __init__(self, anchor_positions):
         self.background = get_scaled_env_background_image()
         self.background_width = self.background.size[0]
         self.background_height = self.background.size[1]
@@ -143,10 +156,8 @@ class RealtimePlotter:
         self.cmap = pp.get_cmap('RdYlBu_r')
         
         self.heatmap = np.zeros((self.heatmap_height, self.heatmap_width))
-        self.anchor_positions = []
-        self.anchor_distances = []
+        self.anchor_positions = anchor_positions
         self.target_position = []
-        self.target_estimation = {}
         self.new_data_available = False
     
     def helper_unpack_coordinates(self, coordinate_list):
@@ -156,7 +167,29 @@ class RealtimePlotter:
         else:
             return [], []
     
-    def start_plotting(self):
+    def set_data(self, data_dict):    
+        self.position_estimations = []
+        self.distance_estimations = []
+    
+        for target_mac in data_dict:
+            target_color = mac_to_color(target_mac) # TODO
+        
+            for algrorithm_name in data_dict[target_mac]:
+                algorithm_data = data_dict[target_mac][algrorithm_name]
+                
+                if 'position' in algorithm_data:
+                    self.position_estimations.append((algorithm_data['position'], target_color, algrorithm_name))
+                    
+                if 'distances' in algorithm_data:
+                    for anchor_mac in algorithm_data['distances']:
+                        self.distance_estimations.append((self.anchor_positions[anchor_mac], algorithm_data['distances'][anchor_mac], target_color))
+                
+                if 'heatmap' in algorithm_data:
+                    self.heatmap = algorithm_data['heatmap']
+        
+        self.new_data_available = True
+    
+    def start_plotting(self, animate=True):
         self.fig, self.ax = plt.subplots()
         
         self.plt_bg = self.ax.imshow(self.background)
@@ -167,14 +200,14 @@ class RealtimePlotter:
                 cmap=self.cmap, extent=(0, self.background_width, self.background_height, 0)
             )
             self.plt_anchor_pos, = self.ax.plot([], [], 'bo', markersize=8, zorder=101)
-            self.plt_target_est, = self.ax.plot([], [], 'ro', markersize=8, zorder=102)
+            self.plt_target_est = self.ax.scatter([], [], c='b', s=8*8, zorder=102)
             self.plt_target_pos, = self.ax.plot([], [], 'go', markersize=8, zorder=103)
             
-            self.plt_anchor_dists = [patches.Circle((0.0, 0.0), radius=0.1, fill=False) for _ in range(4)]
+            self.plt_anchor_dists = [patches.Circle((0.0, 0.0), radius=0.1, fill=False) for _ in range(10 * 2)]
             for circle in self.plt_anchor_dists:
                 self.ax.add_patch(circle)
             
-            self.annotations = [self.ax.annotate('annotation', xy=(0,0), xytext=(0,0), ha='center') for _ in range(3)]
+            self.annotations = [self.ax.annotate('annotation', xy=(0,0), xytext=(0,0), ha='center') for _ in range(3 * 2)]
             
             return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_est, self.plt_target_pos, *self.plt_anchor_dists, *self.annotations
         
@@ -183,58 +216,44 @@ class RealtimePlotter:
                 # Update the heatmap and marker with new data
                 self.plt_heatmap.set_data(self.heatmap)
                 
-                anchor_positions_x, anchor_positions_y = self.helper_unpack_coordinates(self.anchor_positions)
+                anchor_positions_x, anchor_positions_y = self.helper_unpack_coordinates(self.anchor_positions.values())
                 self.plt_anchor_pos.set_data(list(anchor_positions_x), list(anchor_positions_y))
                 
-                target_estimation_x, target_estimation_y = self.helper_unpack_coordinates(self.target_estimation.values())
-                self.plt_target_est.set_data(list(target_estimation_x), list(target_estimation_y))
+                if self.position_estimations:
+                    target_estimation, target_estimation_color, target_estimation_label = zip(*self.position_estimations)
+                    self.plt_target_est.set_offsets(target_estimation)
+                    self.plt_target_est.set_color(target_estimation_color)
+                    print(target_estimation_color)
+                
+                for i in range(len(self.annotations)):
+                    if i < len(self.position_estimations):
+                        self.annotations[i].set_position((target_estimation[i][0], target_estimation[i][1] - 20))
+                        self.annotations[i].set_text(target_estimation_label[i])
+                    else:
+                        self.annotations[i].set_position((0.0, 0.0))
+                        self.annotations[i].set_text('')
                 
                 target_position_x, target_position_y = self.helper_unpack_coordinates(self.target_position)
                 self.plt_target_pos.set_data(list(target_position_x), list(target_position_y))
                 
-                for i in range(len(self.anchor_distances)):
-                    self.plt_anchor_dists[i].set_center(self.anchor_positions[i])
-                    self.plt_anchor_dists[i].set_radius(self.anchor_distances[i])
-                
-                for i, key in enumerate(self.target_estimation.keys()):
-                    self.annotations[i].set_position((self.target_estimation[key][0], self.target_estimation[key][1] - 20))
-                    self.annotations[i].set_text(key)
+                for i in range(len(self.plt_anchor_dists)):
+                    if i < len(self.distance_estimations):
+                        self.plt_anchor_dists[i].set_center(self.distance_estimations[i][0])
+                        self.plt_anchor_dists[i].set_radius(self.distance_estimations[i][1])
+                        self.plt_anchor_dists[i].set_color(self.distance_estimations[i][2])
+                    else:
+                        self.plt_anchor_dists[i].set_center((0.0, 0.0))
+                        self.plt_anchor_dists[i].set_radius(0.0)
                 
                 self.new_data_available = False  # Reset the flag
 
             return self.plt_heatmap, self.plt_anchor_pos, self.plt_target_est, self.plt_target_pos, *self.plt_anchor_dists, *self.annotations
         
-        # Use the FuncAnimation with blitting for speedup
-        ani = animation.FuncAnimation(self.fig, update, init_func=init, blit=True, interval=20)
-        
-        plt.show()
-    
-    def plot(self):
-        self.fig, self.ax = plt.subplots()
-        
-        self.plt_bg = self.ax.imshow(self.background)
-        
-        self.plt_heatmap = self.ax.imshow(self.heatmap,
-            alpha=0.3, zorder=100,
-            cmap=self.cmap, extent=(0, self.background_width, self.background_height, 0)
-        )
-            
-        anchor_positions_x, anchor_positions_y = self.helper_unpack_coordinates(self.anchor_positions)
-        self.plt_anchor_pos, = self.ax.plot(list(anchor_positions_x), list(anchor_positions_y), 'bo', markersize=8, zorder=101)
-            
-        target_estimation_x, target_estimation_y = self.helper_unpack_coordinates(self.target_estimation.values())
-        self.plt_target_est, = self.ax.plot(list(target_estimation_x), list(target_estimation_y), 'ro', markersize=8, zorder=102)
-            
-        target_position_x, target_position_y = self.helper_unpack_coordinates(self.target_position)
-        self.plt_target_pos, = self.ax.plot(list(target_position_x), list(target_position_y), 'go', markersize=8, zorder=103)
-            
-        self.plt_anchor_dists = [patches.Circle(self.anchor_positions[i], radius=self.anchor_distances[i], fill=False) for i in range(len(self.anchor_distances))]
-        for circle in self.plt_anchor_dists:
-            self.ax.add_patch(circle)
-            
-        self.annotations = [self.ax.annotate(key, xy=(0, 0), xytext=(self.target_estimation[key][0], self.target_estimation[key][1] - 20), ha='center') for i, key in enumerate(self.target_estimation.keys())]
-        
-        plt.xlim([0, self.background_width])
-        plt.ylim([self.background_height, 0])
+        if animate:
+            # Use the FuncAnimation with blitting for speedup
+            ani = animation.FuncAnimation(self.fig, update, init_func=init, blit=True, interval=20)
+        else:
+            init()
+            update(None)
         
         plt.show()

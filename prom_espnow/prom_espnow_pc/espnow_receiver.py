@@ -15,16 +15,19 @@ mplstyle.use('fast')
 plot_init()
 
 try:
-    nodeSerial = serial.Serial('COM5', 115200, timeout=1)
+    nodeSerial = serial.Serial('COM6', 115200, timeout=1)
 except:
     print("Error opening serial port")
 
 
 anchors = {
-    "24a1602ccfab": (38.18080724876424, 746.8789126853377),
-    "a4cf12fdaea9": (755.9783772652386, 810.2518533772651),
-    "d8bfc0117c7d": (38.18080724876424, 30.0),
-    "483fda467e7a": (580.0, 500.0),
+    "24a1602ccfab": (38.18080724876424, 746.8789126853377), # Schlafzimmer ESP8266
+    "2462abfb15a8": (38.18080724876424, 746.8789126853377), # Schlafzimmer ESP32
+    "a4cf12fdaea9": (755.9783772652386, 810.2518533772651), # Küche ESP8266
+    "f8b3b734347c": (755.9783772652386, 810.2518533772651), # Küche ESP32
+    "d8bfc0117c7d": (38.18080724876424, 30.0), # Wohnzimmer ESP8266
+    "f8b3b7329214": (38.18080724876424, 30.0), # Wohnzimmer ESP32
+    "483fda467e7a": (580.0, 500.0), # Flur ESP8266
 }
 
 
@@ -105,11 +108,15 @@ message_thread.start()
 
 
 
-plotter = RealtimePlotter()
+plotter = RealtimePlotter(anchors)
 
-tlsl = TrilaterationLeastSquaresLocalization(anchors, plotter=plotter)
-twcl = TrilaterationWeightedCentroidLocalization(anchors, plotter=plotter)
-fpl = FingerprintingLocalization("./fingerprint_maps/2024_11_06_22_12_16.csv", plotter.background.size, plotter=plotter)
+localization_algorithms = {
+    'tlsl': TrilaterationLeastSquaresLocalization(anchors, plotter=plotter),
+    'twcl': TrilaterationWeightedCentroidLocalization(anchors, plotter=plotter),
+#    'fpl': FingerprintingLocalization("./fingerprint_maps/2024_11_06_22_12_16.csv", plotter.background.size, plotter=plotter)
+}
+
+localization_dict = defaultdict(dict)
 
 def localization_update():
     while True:
@@ -119,14 +126,16 @@ def localization_update():
             time.sleep(0.01)
     
         for target_mac in monitor_dict:
-            if len(monitor_dict[target_mac].keys()) < 4: # TODO: 3
+            if len(monitor_dict[target_mac].keys()) < 3: # TODO: 3
                 continue
             
             rssis = {monitor_mac: monitor_dict[target_mac][monitor_mac].get_packet().rssi for monitor_mac in monitor_dict[target_mac].keys()}
             
-            tlsl.localize(rssis)
-            twcl.localize(rssis)
-            fpl.localize(rssis)
+            for algorithm_name, algorithm in localization_algorithms.items():
+                localization_data = algorithm.localize(rssis)
+                localization_dict[target_mac][algorithm_name] = localization_data
+        
+        plotter.set_data(localization_dict)
 
 localization_thread = threading.Thread(target=localization_update, daemon=True)
 localization_thread.start()

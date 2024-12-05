@@ -6,84 +6,78 @@ from util import *
 
 class AbstractLocalization(ABC):
 
-    def __init__(self, smooth=True):
-        self.position = np.array((0.0, 0.0))
-        self.smooth = smooth
+    def __init__(self):
+        pass
 
     @abstractmethod
     def localize(self, rssis):
         pass
     
-    def set_position(self, position):
-        if self.smooth:
-            self.position = 0.99 * self.position + 0.01 * np.array(position)
-        else:
-            self.position = position
-        return self.position
+    def get_relevant_anchor_stats(self, anchor_stats, rssis):
+        monitor_macs_intersec = anchor_stats.keys() & rssis.keys()
+        anchor_stats_intersec = [anchor_stats[monitor_mac] for monitor_mac in monitor_macs_intersec]
+        rssis_intersec = [rssis[monitor_mac] for monitor_mac in monitor_macs_intersec]
+        
+        return monitor_macs_intersec, anchor_stats_intersec, rssis_intersec
 
 class TrilaterationLeastSquaresLocalization(AbstractLocalization):
-    def __init__(self, anchor_positions, smooth=True, plotter=None):
-        super().__init__(smooth)
+    def __init__(self, anchor_positions, plotter=None):
+        super().__init__()
         
         self.anchor_positions = anchor_positions
         self.plotter = plotter
     
     def localize(self, rssis):
-        monitor_macs_intersec = self.anchor_positions.keys() & rssis.keys()
-        anchor_positions_intersec = [self.anchor_positions[monitor_mac] for monitor_mac in monitor_macs_intersec]
-        rssis_intersec = [rssis[monitor_mac] for monitor_mac in monitor_macs_intersec]
-        
-        positions = anchor_positions_intersec
-        distances = [inverse_path_loss_model(rssi) * 100.0 for rssi in rssis_intersec] # m to cm
-        
+        relevant_monitor_macs, relevant_positions, relevant_rssis = self.get_relevant_anchor_stats(self.anchor_positions, rssis)
+        relevant_distances = [inverse_path_loss_model(rssi) * 100.0 for rssi in relevant_rssis] # m to cm
         
         # Number of known positions
-        n = len(positions)
+        n = len(relevant_positions)
         
         # Build the A matrix and b vector
         A = []
         b = []
         
-        x_n, y_n = positions[n-1]
-        d_n = distances[n-1]
+        x_n, y_n = relevant_positions[n-1]
+        d_n = relevant_distances[n-1]
         for i in range(n - 1):
-            x_i, y_i = positions[i]
-            d_i = distances[i]
+            x_i, y_i = relevant_positions[i]
+            d_i = relevant_distances[i]
             A.append([2*(x_i - x_n), 2*(y_i - y_n)])
             b.append(x_i**2 + y_i**2 - x_n**2 - y_n**2 - d_i**2 + d_n**2)
         A = np.array(A)
         b = np.array(b)
 
         # Compute the least squares solution using the normal equation: x = (A^T A)^(-1) A^T b
-        x, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+        position, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
         
-        super().set_position(x)
         
+        '''
         if self.plotter is not None:
             self.plotter.target_estimation["tri_ls"] = self.position
-            self.plotter.anchor_positions = positions
-            self.plotter.anchor_distances = distances
+            self.plotter.anchor_positions = relevant_positions
+            self.plotter.anchor_distances = relevant_distances
             self.plotter.new_data_available = True
+        '''
         
-        return self.position
+        return {
+            'position': position,
+            'distances': {monitor_mac: distance for monitor_mac, distance in zip(relevant_monitor_macs, relevant_distances)}
+        }
 
 class TrilaterationWeightedCentroidLocalization(AbstractLocalization):
-    def __init__(self, anchor_positions, smooth=True, plotter=None):
-        super().__init__(smooth)
+    def __init__(self, anchor_positions, plotter=None):
+        super().__init__()
         
         self.anchor_positions = anchor_positions
         self.plotter = plotter
     
     def localize(self, rssis):
-        monitor_macs_intersec = self.anchor_positions.keys() & rssis.keys()
-        anchor_positions_intersec = [self.anchor_positions[monitor_mac] for monitor_mac in monitor_macs_intersec]
-        rssis_intersec = [rssis[monitor_mac] for monitor_mac in monitor_macs_intersec]
+        relevant_monitor_macs, relevant_positions, relevant_rssis = self.get_relevant_anchor_stats(self.anchor_positions, rssis)
+        relevant_distances = [inverse_path_loss_model(rssi) * 100.0 for rssi in relevant_rssis] # m to cm
         
-        positions = anchor_positions_intersec
-        distances = [inverse_path_loss_model(rssi) * 100.0 for rssi in rssis_intersec] # m to cm
-        
-        positions_np = np.array(positions)
-        distances_np = np.array(distances)
+        relevant_positions_np = np.array(relevant_positions)
+        distances_np = np.array(relevant_distances)
         
         # Calculate the weights as the inverse of the distances
         weights = 1.0 / distances_np
@@ -92,22 +86,27 @@ class TrilaterationWeightedCentroidLocalization(AbstractLocalization):
         weights /= np.sum(weights)
         
         # Weighted sum of positions
-        x = np.sum([w * pos[0] for w, pos in zip(weights, positions_np)])
-        y = np.sum([w * pos[1] for w, pos in zip(weights, positions_np)])
+        x = np.sum([w * pos[0] for w, pos in zip(weights, relevant_positions_np)])
+        y = np.sum([w * pos[1] for w, pos in zip(weights, relevant_positions_np)])
         
-        super().set_position((x, y))
+        position = (x, y)
         
+        '''
         if self.plotter is not None:
             self.plotter.target_estimation["tri_wcl"] = self.position
-            self.plotter.anchor_positions = positions
+            self.plotter.anchor_positions = relevant_positions
             self.plotter.anchor_distances = distances
             self.plotter.new_data_available = True
+        '''
         
-        return self.position
+        return {
+            'position': position,
+            'distances': {monitor_mac: distance for monitor_mac, distance in zip(relevant_monitor_macs, relevant_distances)}
+        }
 
 class FingerprintingLocalization(AbstractLocalization):
-    def __init__(self, fingerprints_file_path, background_size, heatmap_resolution=5.0, smooth=True, plotter=None): # every 5cm
-        super().__init__(smooth)
+    def __init__(self, fingerprints_file_path, background_size, heatmap_resolution=5.0, plotter=None): # every 5cm
+        super().__init__()
         
         self.plotter = plotter
         
@@ -146,20 +145,23 @@ class FingerprintingLocalization(AbstractLocalization):
         self.interpolated_fingerprints = {monitor_mac: generate_interpolated_fingerprint_map(monitor_mac) for monitor_mac in monitor_macs}
     
     def localize(self, rssis):
-        monitor_macs_intersection = self.interpolated_fingerprints.keys() & rssis.keys()
-        interpolated_fingerprints_intersection = np.array([self.interpolated_fingerprints[monitor_mac] for monitor_mac in monitor_macs_intersection])
-        rssis_intersection = np.array([rssis[monitor_mac] for monitor_mac in monitor_macs_intersection])
+        _, relevant_interpolated_fingerprints, relevant_rssis = self.get_relevant_anchor_stats(self.interpolated_fingerprints, rssis)
         
-        diff = np.moveaxis(interpolated_fingerprints_intersection, 0, -1) - rssis_intersection        
+        diff = np.moveaxis(relevant_interpolated_fingerprints, 0, -1) - relevant_rssis        
         norm = np.linalg.norm(diff, axis=2)
         min_pos_heatmap = np.unravel_index(np.argmin(norm, axis=None), norm.shape)        
         min_pos = (self.pos_lookup_x[min_pos_heatmap[1]], self.pos_lookup_y[min_pos_heatmap[0]])
         
-        super().set_position(min_pos)
+        position = min_pos
         
+        '''
         if self.plotter is not None:
             self.plotter.heatmap = norm
             self.plotter.target_estimation["fp"] = self.position
             self.plotter.new_data_available = True
+        '''
         
-        return self.position
+        return {
+            'position': position,
+            'heatmap': norm
+        }

@@ -24,11 +24,15 @@ anchors = {
 }
 
 
-plotter = RealtimePlotter()
+plotter = RealtimePlotter(anchors)
 
-tlsl = TrilaterationLeastSquaresLocalization(anchors, smooth=False, plotter=plotter)
-twcl = TrilaterationWeightedCentroidLocalization(anchors, smooth=False, plotter=plotter)
-fpl = FingerprintingLocalization("./fingerprint_maps/2024_11_06_22_12_16.csv", plotter.background.size, smooth=False, plotter=plotter)
+localization_algorithms = {
+    'tlsl': TrilaterationLeastSquaresLocalization(anchors, plotter=plotter),
+    'twcl': TrilaterationWeightedCentroidLocalization(anchors, plotter=plotter),
+    'fpl': FingerprintingLocalization("./fingerprint_maps/2024_11_06_22_12_16.csv", plotter.background.size, plotter=plotter)
+}
+
+localization_dict = defaultdict(dict)
 
 def localization_update():
     df = pd.read_csv("./fingerprint_maps/2024_11_06_22_12_16.csv", index_col=False)
@@ -36,11 +40,12 @@ def localization_update():
     df_mean.columns = ['monitor_mac', 'target_position_x', 'target_position_y', 'anchor_position_x', 'anchor_position_y', 'rssi_median']
     df_mean['target_position'] = df_mean[['target_position_x', 'target_position_y']].apply(tuple, axis=1)
     
-    target_positions = df_mean['target_position'].unique()
+    print(df_mean)
     
-    tlsl_errors = []
-    twcl_errors = []
-    fpl_errors = []
+    target_positions = df_mean['target_position'].unique()
+    target_mac = df['target_mac'].unique()[0]
+    
+    error_dict = {algorithm_name: [] for algorithm_name in localization_algorithms}
     
     for target_position in target_positions:
         rows = df_mean[df_mean['target_position'] == target_position]
@@ -53,56 +58,47 @@ def localization_update():
         
         target_position_np = np.array(target_position)
         
-        tlsl_est = tlsl.localize(rssis)
-        twcl_est = twcl.localize(rssis)
-        fpl_est = fpl.localize(rssis)
-        
-        tlsl_err = np.linalg.norm(np.array(tlsl_est) - target_position_np)
-        twcl_err = np.linalg.norm(np.array(twcl_est) - target_position_np)
-        fpl_err = np.linalg.norm(np.array(fpl_est) - target_position_np)
-        
-        tlsl_errors.append(tlsl_err)
-        twcl_errors.append(twcl_err)
-        fpl_errors.append(fpl_err)
-        
-        print('==========================================')
-        print('tlsl: ' + str(tlsl_err))
-        print('twcl: ' + str(twcl_err))
-        print('fpl: ' + str(fpl_err))
         print('==========================================')
         
-        plotter.plot()
+        for algorithm_name, algorithm in localization_algorithms.items():
+            localization_data = algorithm.localize(rssis)
+            localization_dict[target_mac][algorithm_name] = localization_data
+            
+            position_estimation = localization_data['position']
+            err = np.linalg.norm(np.array(position_estimation) - target_position_np)
+            error_dict[algorithm_name].append(err)
+            
+            print(algorithm_name + ': ' + str(err))
+        
+        print('==========================================')
+        
+        plotter.set_data(localization_dict)        
+        plotter.start_plotting(False)
     
-    tlsl_errors = np.array(tlsl_errors)
-    twcl_errors = np.array(twcl_errors)
-    fpl_errors = np.array(fpl_errors)
+    error_dict = {algorithm_name: np.array(error_dict[algorithm_name]) for algorithm_name in error_dict}
     
     print('++++++++++++++++++++++++++++++++++++++++++')
-    print('tlsl: ' + str(tlsl_errors.sum()))
-    print('twcl: ' + str(twcl_errors.sum()))
-    print('fpl: ' + str(fpl_errors.sum()))
+    for algorithm_name in error_dict:
+        print(algorithm_name + ': ' + str(error_dict[algorithm_name].sum()))
     print('++++++++++++++++++++++++++++++++++++++++++')
     
-    print('******************************************')
-    print('tlsl: ' + str(tlsl_errors.mean()))
-    print('twcl: ' + str(twcl_errors.mean()))
-    print('fpl: ' + str(fpl_errors.mean()))
-    print('******************************************')
+    print('++++++++++++++++++++++++++++++++++++++++++')
+    for algorithm_name in error_dict:
+        print(algorithm_name + ': ' + str(error_dict[algorithm_name].mean()))
+    print('++++++++++++++++++++++++++++++++++++++++++')
     
     
-    N = len(tlsl_errors)
+    N = len(target_positions)
     y = np.arange(N) / float(N)
-    tlsl_errors_sorted = np.sort(tlsl_errors)
-    twcl_errors_sorted = np.sort(twcl_errors)
-    fpl_errors_sorted = np.sort(fpl_errors)
     
     # plotting 
     plt.xlabel('Distance error (cm)') 
     plt.ylabel('CDF')
-      
-    plt.plot(tlsl_errors_sorted, y, marker='o', label='tlsl')
-    plt.plot(twcl_errors_sorted, y, marker='o', label='twcl')
-    plt.plot(fpl_errors_sorted, y, marker='o', label='fpl')
+    
+    for algorithm_name in error_dict:
+        sorted_errors = np.sort(error_dict[algorithm_name])
+        plt.plot(sorted_errors, y, marker='o', label=algorithm_name)
+    
     plt.legend()
     plt.show()
 
