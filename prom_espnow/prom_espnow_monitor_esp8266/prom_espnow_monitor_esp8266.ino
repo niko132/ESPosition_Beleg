@@ -70,6 +70,7 @@ void initWifi();
 void getPacketSender(const wifi_ieee80211_packet_t *ipkt, uint8_t *macBuf);
 bool macEquals(const uint8_t *mac1, const uint8_t *mac2);
 void printMac(const uint8_t *mac);
+bool isTargetMac(uint8_t *mac);
 
 void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type);
 void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus);
@@ -80,8 +81,11 @@ void sendRssiData();
 */
 const int WIFI_CHANNEL = 1;
 const uint8_t MAC_ESP_NOW[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-// const uint8_t MAC_POS_TARGET[] = { 0x34, 0x2E, 0xB6, 0x1E, 0xC4, 0x46 };
-const uint8_t MAC_POS_TARGET[] = { 0xDA, 0x9E, 0xC7, 0xF5, 0x5B, 0xEB };
+const int NUMBER_OF_TARGETS = 2;
+const uint8_t MAC_POS_TARGETS[NUMBER_OF_TARGETS][6] = {
+  { 0x34, 0x2E, 0xB6, 0x1E, 0xC4, 0x46 },
+  { 0xDA, 0x9E, 0xC7, 0xF5, 0x5B, 0xEB }
+};
 
 /*
   GLOBAL VARIABLES
@@ -120,6 +124,15 @@ void printMac(const uint8_t *mac) {
   Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
+bool isTargetMac(uint8_t *mac) {
+  for (int i = 0; i < NUMBER_OF_TARGETS; i++) {
+    if (macEquals(mac, MAC_POS_TARGETS[i]))
+      return true;
+  }
+
+  return false;
+}
+
 
 void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type) {
   const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buffer;
@@ -128,11 +141,16 @@ void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type) {
   uint8_t macSender[6];
   getPacketSender(ipkt, macSender);
 
-  if (!macEquals(macSender, MAC_POS_TARGET))
+  if (!isTargetMac(macSender))
     return;
   
   memcpy(lastMac, macSender, 6);
   lastRssi = rssi;
+
+  if (isDirty == true) {
+    Serial.println("Missed packet");
+  }
+
   isDirty = true;
 }
 
