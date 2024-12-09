@@ -31,6 +31,7 @@ typedef struct {
   METHOD DEFINITIONS
 */
 void initWifi();
+
 void getPacketSender(const wifi_ieee80211_packet_t *ipkt, uint8_t *macBuf);
 bool isTargetMac(const uint8_t *mac);
 bool isMonitorMac(const uint8_t *mac);

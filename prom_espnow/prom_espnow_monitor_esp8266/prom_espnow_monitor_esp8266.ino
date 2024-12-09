@@ -1,66 +1,15 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <espnow.h>
+#include "EspWifiTypes.h"
+#include "LockFreeQueue.h"
 
 extern "C" {
   #include <user_interface.h>
 }
 
-/*
-  TYPE DEFINITIONS
-*/
-typedef struct {
-	signed rssi: 8;
-	unsigned rate: 4;
-	unsigned is_group: 1;
-	unsigned: 1;
-	unsigned sig_mode: 2;
-	unsigned legacy_length: 12;
-	unsigned damatch0: 1;
-	unsigned damatch1: 1;
-	unsigned bssidmatch0: 1;
-	unsigned bssidmatch1: 1;
-	unsigned MCS: 7;
-	unsigned CWB: 1;
-	unsigned HT_length: 16;
-	unsigned Smoothing: 1;
-	unsigned Not_Sounding: 1;
-	unsigned: 1;
-	unsigned Aggregation: 1;
-	unsigned STBC: 2;
-	unsigned FEC_CODING: 1;
-	unsigned SGI: 1;
-	unsigned rxend_state: 8;
-	unsigned ampdu_cnt: 8;
-	unsigned channel: 4;
-	unsigned: 12;
-} wifi_pkt_rx_ctrl_t;
-
-typedef struct {
-	wifi_pkt_rx_ctrl_t rx_ctrl;
-	uint8_t payload[0]; /* ieee80211 packet buff */
-} wifi_promiscuous_pkt_t;
-
-typedef struct {
-	unsigned frame_ctrl:16;
-	unsigned duration_id:16;
-	uint8_t addr1[6]; /* receiver address */
-	uint8_t addr2[6]; /* sender address */
-	uint8_t addr3[6]; /* filtering address */
-	unsigned sequence_ctrl:16;
-	uint8_t addr4[6]; /* optional */
-} wifi_ieee80211_mac_hdr_t;
-
-typedef struct {
-	wifi_ieee80211_mac_hdr_t hdr;
-	uint8_t payload[0]; /* network data ended with 4 bytes csum (CRC32) */
-} wifi_ieee80211_packet_t;
-
-typedef struct {
-  uint8_t srcMac[6];
-  double rssiSum;
-  size_t rssiCnt;
-} rssi_aggregation;
+#define DEBUG false // flag to turn on/off debugging
+#define Serial if(DEBUG)Serial
 
 /*
   METHOD DEFINITIONS
@@ -68,31 +17,49 @@ typedef struct {
 void initWifi();
 
 void getPacketSender(const wifi_ieee80211_packet_t *ipkt, uint8_t *macBuf);
-bool macEquals(const uint8_t *mac1, const uint8_t *mac2);
-void printMac(const uint8_t *mac);
-bool isTargetMac(uint8_t *mac);
+bool isTargetMac(const uint8_t *mac);
+bool isMonitorMac(const uint8_t *mac);
 
 void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type);
 void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus);
-void sendRssiData();
+void sendRssiData(const packet_info& pi);
 
 /*
   CONST VARIABLES
 */
 const int WIFI_CHANNEL = 1;
 const uint8_t MAC_ESP_NOW[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-const int NUMBER_OF_TARGETS = 2;
-const uint8_t MAC_POS_TARGETS[NUMBER_OF_TARGETS][6] = {
-  { 0x34, 0x2E, 0xB6, 0x1E, 0xC4, 0x46 },
-  { 0xDA, 0x9E, 0xC7, 0xF5, 0x5B, 0xEB }
+
+// List of target MAC addresses
+const uint8_t TARGET_MACS[][6] = {
+    { 0xDA, 0x9E, 0xC7, 0xF5, 0x5B, 0xEB },	// Pixel 9 Pro XL
+    { 0x34, 0x2e, 0xb6, 0x1e, 0xc4, 0x46 }	// Huawei P20 Pro
 };
+const size_t TARGET_MAC_COUNT = sizeof(TARGET_MACS) / sizeof(TARGET_MACS[0]);
+
+// List of monitor MAC addresses
+const uint8_t MONITOR_MACS[][6] = {
+    // ESP8266
+    { 0x48, 0x3F, 0xDA, 0x46, 0x7E, 0x7A },
+    { 0xD8, 0xBF, 0xC0, 0x11, 0x7C, 0x7D },
+    { 0x24, 0xA1, 0x60, 0x2C, 0xCF, 0xAB },
+    { 0xA4, 0xCF, 0x12, 0xFD, 0xAE, 0xA9 },
+
+    // ESP32
+    { 0x24, 0x62, 0xAB, 0xFB, 0x15, 0xA8 },
+    { 0xA0, 0xA3, 0xB3, 0xFF, 0x35, 0xC0 },
+    { 0xF8, 0xB3, 0xB7, 0x34, 0x34, 0x7C },
+    { 0xA0, 0xA3, 0xB3, 0xFF, 0x66, 0xB4 },
+    { 0x08, 0xA6, 0xF7, 0xA1, 0xE5, 0xC8 },
+    { 0xF8, 0xB3, 0xB7, 0x32, 0xFB, 0x6C },
+    { 0xF8, 0xB3, 0xB7, 0x33, 0x03, 0xE8 }
+};
+const size_t MONITOR_MAC_COUNT = sizeof(MONITOR_MACS) / sizeof(MONITOR_MACS[0]);
 
 /*
   GLOBAL VARIABLES
 */
-uint8_t lastMac[6];
-int lastRssi = 0;
-bool isDirty = false;
+LockFreeQueue<packet_info> queue;  // Create a lock-free queue for packet_info
 
 void initWifi() {
   // init wifi
@@ -116,20 +83,21 @@ void getPacketSender(const wifi_ieee80211_packet_t *ipkt, uint8_t *macBuf) {
   memcpy(macBuf, ipkt->hdr.addr2, 6);
 }
 
-bool macEquals(const uint8_t *mac1, const uint8_t *mac2) {
-  return memcmp(mac1, mac2, 6) == 0;
-}
-
-void printMac(const uint8_t *mac) {
-  Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-}
-
-bool isTargetMac(uint8_t *mac) {
-  for (int i = 0; i < NUMBER_OF_TARGETS; i++) {
-    if (macEquals(mac, MAC_POS_TARGETS[i]))
+bool isTargetMac(const uint8_t *mac) {
+  for (size_t i = 0; i < TARGET_MAC_COUNT; i++) {
+    if (memcmp(mac, TARGET_MACS[i], 6) == 0) {
       return true;
+    }
   }
+  return false;
+}
 
+bool isMonitorMac(const uint8_t *mac) {
+  for (size_t i = 0; i < MONITOR_MAC_COUNT; i++) {
+    if (memcmp(mac, MONITOR_MACS[i], 6) == 0) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -140,30 +108,28 @@ void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type) {
   int rssi = ppkt->rx_ctrl.rssi;
   uint8_t macSender[6];
   getPacketSender(ipkt, macSender);
-
-  if (!isTargetMac(macSender))
-    return;
   
-  memcpy(lastMac, macSender, 6);
-  lastRssi = rssi;
-
-  if (isDirty == true) {
-    Serial.println("Missed packet");
+  if (isTargetMac(macSender) || (isMonitorMac(macSender) && isTargetMac(&ipkt->payload[7]))) {
+    packet_info pi;
+    memcpy(pi.srcMac, macSender, 6);
+    pi.rssi = (int8_t)rssi;
+    queue.enqueue(pi);
   }
-
-  isDirty = true;
 }
 
 void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus) {
   Serial.print("ESP NOW: send to ");
-  printMac(dstMac);
+  Serial.printf(MACSTR, MAC2STR(dstMac));
   Serial.println(sendStatus == 0 ? " successful" : " failed");
 }
 
-void sendRssiData() {
+void sendRssiData(const packet_info& pi) {
   uint8_t buffer[7]; // 6 for mac + 1 for rssi
-  memcpy(buffer, lastMac, 6);
-  buffer[6] = (uint8_t) -lastRssi; // RSSI should be between [-100,0]
+  memcpy(buffer, pi.srcMac, 6);
+  buffer[6] = (uint8_t) -pi.rssi; // RSSI should be between [-100,0]
+
+  Serial.printf(MACSTR, MAC2STR(pi.srcMac));
+  Serial.println();
 
   esp_now_send((uint8_t*)MAC_ESP_NOW, buffer, sizeof(buffer));
 }
@@ -179,8 +145,8 @@ void setup() {
 }
 
 void loop() {
-  if (isDirty) {
-    sendRssiData();
-    isDirty = false;
+  packet_info pi;
+  while (queue.dequeue(pi)) {
+    sendRssiData(pi);
   }
 }
