@@ -4,12 +4,12 @@
 #include "EspWifiTypes.h"
 #include "LockFreeQueue.h"
 
+#define DEBUG false
+#include "Debug.h"
+
 extern "C" {
   #include <user_interface.h>
 }
-
-#define DEBUG false // flag to turn on/off debugging
-#define Serial if(DEBUG)Serial
 
 /*
   METHOD DEFINITIONS
@@ -20,8 +20,8 @@ void getPacketSender(const wifi_ieee80211_packet_t *ipkt, uint8_t *macBuf);
 bool isTargetMac(const uint8_t *mac);
 bool isMonitorMac(const uint8_t *mac);
 
-void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type);
-void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus);
+void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buf, uint16_t type);
+void espNowDataSentCallback(uint8_t *dstMac, uint8_t status);
 void sendRssiData(const packet_info& pi);
 
 /*
@@ -102,8 +102,8 @@ bool isMonitorMac(const uint8_t *mac) {
 }
 
 
-void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type) {
-  const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buffer;
+void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buf, uint16_t type) {
+  const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
   const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
   int rssi = ppkt->rx_ctrl.rssi;
   uint8_t macSender[6];
@@ -117,10 +117,10 @@ void ICACHE_FLASH_ATTR promiscuousCallback(uint8_t *buffer, uint16_t type) {
   }
 }
 
-void espNowDataSentCallback(uint8_t *dstMac, uint8_t sendStatus) {
-  Serial.print("ESP NOW: send to ");
-  Serial.printf(MACSTR, MAC2STR(dstMac));
-  Serial.println(sendStatus == 0 ? " successful" : " failed");
+void espNowDataSentCallback(uint8_t *dstMac, uint8_t status) {
+  DEBUG_PRINT("ESP NOW: send to ");
+  DEBUG_PRINTF(MACSTR, MAC2STR(dstMac));
+  DEBUG_PRINTLN(status == 0 ? " successful" : " failed");
 }
 
 void sendRssiData(const packet_info& pi) {
@@ -128,8 +128,8 @@ void sendRssiData(const packet_info& pi) {
   memcpy(buffer, pi.srcMac, 6);
   buffer[6] = (uint8_t) -pi.rssi; // RSSI should be between [-100,0]
 
-  Serial.printf(MACSTR, MAC2STR(pi.srcMac));
-  Serial.println();
+  DEBUG_PRINTF(MACSTR, MAC2STR(pi.srcMac));
+  DEBUG_PRINTLN();
 
   esp_now_send((uint8_t*)MAC_ESP_NOW, buffer, sizeof(buffer));
 }
@@ -138,8 +138,8 @@ void sendRssiData(const packet_info& pi) {
 void setup() {
   Serial.begin(115200);
   
-  Serial.println();
-  Serial.printf("ESP Board MAC Address: %s\n", WiFi.macAddress().c_str());
+  DEBUG_PRINTLN();
+  DEBUG_PRINTF("ESP Board MAC Address: %s\n", WiFi.macAddress().c_str());
 
   initWifi();
 }
