@@ -10,7 +10,21 @@ from matplotlib.ticker import MultipleLocator
 
 # GET ANCHOR POSITIONS
 
-anchor_macs = ["24a1602ccfab", "d8bfc0117c7d", "a4cf12fdaea9", "483fda467e7a"]
+anchor_macs = [
+    # ESP8266
+    "483fda467e7a",
+    "d8bfc0117c7d",
+    "24a1602ccfab",
+    "a4cf12fdaea9",
+
+    # ESP32
+    "a0a3b3ff35c0",
+    "f8b3b734347c",
+    "a0a3b3ff66b4",
+    "08a6f7a1e5c8",
+    "f8b3b732fb6c",
+    "f8b3b73303e8",
+]
 
 background = get_env_background_image()
 # scale so that 1px = 1cm
@@ -65,14 +79,26 @@ except:
 
 pattern = re.compile("^([0-9A-Fa-f]{12})_([0-9A-Fa-f]{12}):(-?[0-9]+\.?[0-9]*)\s*$")
 
-timestamps = []
-monitor_macs = []
-target_macs = []
-rssis = []
-anchor_positions_x = []
-anchor_positions_y = []
-target_positions_x = []
-target_positions_y = []
+def save_csv(filepath, timestamps = [], monitor_macs = [], target_macs = [], rssis = [], anchor_positions_x = [], anchor_positions_y = [], target_positions_x = [], target_positions_y = [], header=False):
+    df = pd.DataFrame({
+        'timestamp': timestamps,
+        'monitor_mac': monitor_macs,
+        'target_mac': target_macs,
+        'rssi': rssis,
+        'anchor_position_x': anchor_positions_x,
+        'anchor_position_y': anchor_positions_y,
+        'target_position_x': target_positions_x,
+        'target_position_y': target_positions_y,
+    })
+
+    if header:
+        df.to_csv(filepath, mode='w', header=True, index=False)
+    else:
+        df.to_csv(filepath, mode='a', header=False, index=False)
+
+filename = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+filepath = "./fingerprint_maps/" + filename + ".csv"
+save_csv(filepath, header=True)
 
 target_positions = []
 
@@ -103,11 +129,20 @@ try:
             target_positions.append((x, y))
             print("Collecting samples...")
             
+            timestamps = []
+            monitor_macs = []
+            target_macs = []
+            rssis = []
+            anchor_positions_x = []
+            anchor_positions_y = []
+            target_positions_x = []
+            target_positions_y = []
+            
             # drain the serial port
             nodeSerial.reset_input_buffer()
             
             start_time = time.time()
-            timeout = 10 # 10s per measurement
+            timeout = 20 # 30s per measurement
             
             while True:
                 if time.time() > start_time + timeout:
@@ -146,6 +181,8 @@ try:
             
             print("Done!")
             plt.close(event.canvas.figure)
+            
+            save_csv(filepath, timestamps, monitor_macs, target_macs, rssis, anchor_positions_x, anchor_positions_y, target_positions_x, target_positions_y)
         
         cid = fig.canvas.mpl_connect('button_press_event', onclick)
         
@@ -156,20 +193,3 @@ try:
 except KeyboardInterrupt:
     print("Done!")
     print("Converting to Pandas Dataframe...")
-
-df = pd.DataFrame({
-    'timestamp': timestamps,
-    'monitor_mac': monitor_macs,
-    'target_mac': target_macs,
-    'rssi': rssis,
-    'anchor_position_x': anchor_positions_x,
-    'anchor_position_y': anchor_positions_y,
-    'target_position_x': target_positions_x,
-    'target_position_y': target_positions_y,
-})
-
-filename = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-filepath = "./fingerprint_maps/" + filename
-
-df.to_pickle(filepath + ".pkl")
-df.to_csv(filepath + ".csv", index=False)

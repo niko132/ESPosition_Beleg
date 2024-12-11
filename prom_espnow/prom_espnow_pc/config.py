@@ -1,7 +1,8 @@
 from PIL import Image
 
 ENVIRONMENTS = {
-    "flat": ("flat.png", 8.19)
+    "flat": ("flat.png", 8.19),
+    "apb": ("apb.png", 10.0)
 }
 
 CURRENT_ENV = "flat"
