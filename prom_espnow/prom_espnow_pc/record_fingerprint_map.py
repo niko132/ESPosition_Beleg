@@ -10,6 +10,7 @@ from matplotlib.ticker import MultipleLocator
 
 # GET ANCHOR POSITIONS
 
+'''
 anchor_macs = [
     # ESP8266
     "483fda467e7a", # 1461, 241
@@ -24,6 +25,22 @@ anchor_macs = [
     "08a6f7a1e5c8", # 884, 45
     "f8b3b732fb6c", # 1461, 241
     "f8b3b73303e8", # 861, 580
+]
+'''
+anchor_macs = [
+    # ESP8266
+    "483fda467e7a", # 62, 42
+    "d8bfc0117c7d", # 556, 510
+    "24a1602ccfab", # 744, 844
+    "a4cf12fdaea9", # 56, 723
+
+    # ESP32
+    "a0a3b3ff35c0", # 744, 844
+    "f8b3b734347c", # 441, 934
+    "a0a3b3ff66b4", # 556, 510
+    "08a6f7a1e5c8", # 270, 387
+    "f8b3b732fb6c", # 62, 42
+    "f8b3b73303e8", # 56, 723
 ]
 
 background = get_env_background_image()
@@ -67,6 +84,7 @@ def get_anchor_positions():
     return anchor_positions_in_cm
 
 # anchor_positions_in_cm = get_anchor_positions()
+'''
 anchor_positions_in_cm = {
     # ESP8266
     "483fda467e7a": (1461, 241),
@@ -81,6 +99,22 @@ anchor_positions_in_cm = {
     "08a6f7a1e5c8": (884, 45),
     "f8b3b732fb6c": (1461, 241),
     "f8b3b73303e8": (861, 580),
+}
+'''
+anchor_positions_in_cm = {
+    # ESP8266
+    "483fda467e7a": (62, 42),
+    "d8bfc0117c7d": (556, 510),
+    "24a1602ccfab": (744, 844),
+    "a4cf12fdaea9": (56, 723),
+
+    # ESP32
+    "a0a3b3ff35c0": (744, 844),
+    "f8b3b734347c": (441, 934),
+    "a0a3b3ff66b4": (556, 510),
+    "08a6f7a1e5c8": (270, 387),
+    "f8b3b732fb6c": (62, 42),
+    "f8b3b73303e8": (56, 723),
 }
 print(anchor_positions_in_cm)
 
@@ -157,7 +191,7 @@ try:
             nodeSerial.reset_input_buffer()
             
             start_time = time.time()
-            timeout = 80 # 30s per measurement
+            timeout = 80 # 20s per measurement
             
             while True:
                 if time.time() > start_time + timeout:

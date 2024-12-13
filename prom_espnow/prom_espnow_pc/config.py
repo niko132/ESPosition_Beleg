@@ -3,10 +3,11 @@ from PIL import Image
 ENVIRONMENTS = {
     "flat": ("flat.png", 8.19),
     "apb": ("apb.png", 10.0),
-    "apb_3081_scaled": ("apb_3081_scaled_fingerprints.png", 21.52)
+    "apb_3081_scaled": ("apb_3081_scaled_fingerprints.png", 21.52),
+    "flat_scaled": ("flat_scaled_fingerprints.png", 8.19)
 }
 
-CURRENT_ENV = "apb_3081_scaled"
+CURRENT_ENV = "flat_scaled"
 
 #PATH_LOSS_L0 = -45.0 # -45.0
 #PATH_LOSS_EXP = 4.5 # 3.0
