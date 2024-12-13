@@ -10,7 +10,7 @@ from scipy.interpolate import Rbf
 import matplotlib.cm as cm
 import matplotlib
 
-current_file = "2024_11_06_22_12_16.csv"
+current_file = "2024_12_12_11_31_48_Pixel9_eval_1_filtered.csv"
 filepath = "./fingerprint_maps/" + current_file
 
 df = pd.read_csv(filepath, index_col=False)

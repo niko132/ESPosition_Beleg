@@ -15,12 +15,20 @@ mplstyle.use('fast')
 
 import scipy
 
-
 anchors = {
-    "24a1602ccfab": (38.18080724876424, 746.8789126853377),
-    "a4cf12fdaea9": (755.9783772652386, 810.2518533772651),
-    "d8bfc0117c7d": (38.18080724876424, 30.0),
-    "483fda467e7a": (580.0, 500.0),
+    # ESP8266
+    "483fda467e7a": (1461, 241),
+    "d8bfc0117c7d": (107, 884),
+    "24a1602ccfab": (2048, 884),
+    "a4cf12fdaea9": (861, 580),
+
+    # ESP32
+    "a0a3b3ff35c0": (2048, 884),
+    "f8b3b734347c": (1047, 884),
+    "a0a3b3ff66b4": (107, 884),
+    "08a6f7a1e5c8": (884, 45),
+    "f8b3b732fb6c": (1461, 241),
+    "f8b3b73303e8": (861, 580),
 }
 
 
@@ -29,13 +37,13 @@ plotter = RealtimePlotter(anchors)
 localization_algorithms = {
     'tlsl': TrilaterationLeastSquaresLocalization(anchors, plotter=plotter),
     'twcl': TrilaterationWeightedCentroidLocalization(anchors, plotter=plotter),
-    'fpl': FingerprintingLocalization("./fingerprint_maps/2024_11_06_22_12_16.csv", plotter.background.size, plotter=plotter)
+    'fpl': FingerprintingLocalization("./fingerprint_maps/2024_12_12_10_17_51_iPhone_3_filtered.csv", plotter.background.size, plotter=plotter)
 }
 
 localization_dict = defaultdict(dict)
 
 def localization_update():
-    df = pd.read_csv("./fingerprint_maps/2024_11_06_22_12_16.csv", index_col=False)
+    df = pd.read_csv("./fingerprint_maps/2024_12_12_12_20_42_P20_Pro_eval_1_filtered.csv", index_col=False)
     df_mean = df.groupby(['monitor_mac', 'target_position_x', 'target_position_y', 'anchor_position_x', 'anchor_position_y'], as_index=False).agg({'rssi':['median']})
     df_mean.columns = ['monitor_mac', 'target_position_x', 'target_position_y', 'anchor_position_x', 'anchor_position_y', 'rssi_median']
     df_mean['target_position'] = df_mean[['target_position_x', 'target_position_y']].apply(tuple, axis=1)
