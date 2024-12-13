@@ -14,12 +14,15 @@ mplstyle.use('fast')
 
 plot_init()
 
+'''
 try:
     nodeSerial = serial.Serial('COM6', 115200, timeout=1)
 except:
     print("Error opening serial port")
+'''
 
 
+'''
 anchors = {
     "24a1602ccfab": (38.18080724876424, 746.8789126853377), # Schlafzimmer ESP8266
     "2462abfb15a8": (38.18080724876424, 746.8789126853377), # Schlafzimmer ESP32
@@ -29,6 +32,23 @@ anchors = {
     "f8b3b7329214": (38.18080724876424, 30.0), # Wohnzimmer ESP32
     "483fda467e7a": (580.0, 500.0), # Flur ESP8266
 }
+'''
+
+anchors = {
+    # ESP8266
+    "483fda467e7a": (1461, 241),
+    "d8bfc0117c7d": (107, 884),
+    "24a1602ccfab": (2048, 884),
+    "a4cf12fdaea9": (861, 580),
+
+    # ESP32
+    "a0a3b3ff35c0": (2048, 884),
+    "f8b3b734347c": (1047, 884),
+    "a0a3b3ff66b4": (107, 884),
+    "08a6f7a1e5c8": (884, 45),
+    "f8b3b732fb6c": (1461, 241),
+    "f8b3b73303e8": (861, 580),
+}
 
 
 # anchors = get_test_anchors()
@@ -36,7 +56,7 @@ anchors = {
 # sim_target_position = (1.0, 1.0)
 # simulator = ESPositionMainNodeSimulator(anchors, "100000000000", sim_target_position, True, True, 100, True)
 
-# playback = ESPositionMainNodePlayback("342eb61ec446", "./recordings/2024_09_05_17_50_22_walk_through_flat.csv")
+playback = ESPositionMainNodePlayback("d81c79de34e1", "./fingerprint_maps/12_12_24/2024_12_12_13_19_04_iPhone_path_yt_filtered.csv")
 # anchors = playback.get_anchors()
 
 # plot_monitors(anchors.values())
@@ -66,10 +86,10 @@ import datetime as dt
 def message_handler_func():    
     while True:
         #read data from serial port
-        line = nodeSerial.readline()
-        print(nodeSerial.in_waiting)
+        # line = nodeSerial.readline()
+        # print(nodeSerial.in_waiting)
         # line = simulator.readline()
-        # line = playback.readline()
+        line = playback.readline()
 
         #if there is smth do smth
         if len(line) >= 1:
@@ -113,23 +133,27 @@ plotter = RealtimePlotter(anchors)
 localization_algorithms = {
     'tlsl': TrilaterationLeastSquaresLocalization(anchors, plotter=plotter),
     'twcl': TrilaterationWeightedCentroidLocalization(anchors, plotter=plotter),
-#    'fpl': FingerprintingLocalization("./fingerprint_maps/2024_11_06_22_12_16.csv", plotter.background.size, plotter=plotter)
+    'fpl': FingerprintingLocalization("./fingerprint_maps/12_12_24/2024_12_12_10_17_51_iPhone_3_filtered.csv", plotter.background.size, plotter=plotter)
 }
 
 localization_dict = defaultdict(dict)
+
+from copy import deepcopy
 
 def localization_update():
     while True:
         # to prevent starvation of the message thread
         # python threading is weird
-        while nodeSerial.in_waiting > 0:
-            time.sleep(0.01)
+        # while nodeSerial.in_waiting > 0:
+        #    time.sleep(0.01)
+        
+        monitor_dict1 = deepcopy(monitor_dict)
     
-        for target_mac in monitor_dict:
-            if len(monitor_dict[target_mac].keys()) < 3: # TODO: 3
+        for target_mac in monitor_dict1:
+            if len(monitor_dict1[target_mac].keys()) < 3: # TODO: 3
                 continue
             
-            rssis = {monitor_mac: monitor_dict[target_mac][monitor_mac].get_packet().rssi for monitor_mac in monitor_dict[target_mac].keys()}
+            rssis = {monitor_mac: monitor_dict1[target_mac][monitor_mac].get_packet().rssi for monitor_mac in monitor_dict1[target_mac].keys()}
             
             for algorithm_name, algorithm in localization_algorithms.items():
                 localization_data = algorithm.localize(rssis)

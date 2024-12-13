@@ -37,13 +37,13 @@ plotter = RealtimePlotter(anchors)
 localization_algorithms = {
     'tlsl': TrilaterationLeastSquaresLocalization(anchors, plotter=plotter),
     'twcl': TrilaterationWeightedCentroidLocalization(anchors, plotter=plotter),
-    'fpl': FingerprintingLocalization("./fingerprint_maps/2024_12_12_10_17_51_iPhone_3_filtered.csv", plotter.background.size, plotter=plotter)
+    'fpl': FingerprintingLocalization("./fingerprint_maps/12_12_24/2024_12_12_10_17_51_iPhone_3_filtered_esp8266.csv", plotter.background.size, plotter=plotter)
 }
 
 localization_dict = defaultdict(dict)
 
 def localization_update():
-    df = pd.read_csv("./fingerprint_maps/2024_12_12_12_20_42_P20_Pro_eval_1_filtered.csv", index_col=False)
+    df = pd.read_csv("./fingerprint_maps/12_12_24/2024_12_12_11_54_13_iPhone_eval_1_filtered.csv", index_col=False)
     df_mean = df.groupby(['monitor_mac', 'target_position_x', 'target_position_y', 'anchor_position_x', 'anchor_position_y'], as_index=False).agg({'rssi':['median']})
     df_mean.columns = ['monitor_mac', 'target_position_x', 'target_position_y', 'anchor_position_x', 'anchor_position_y', 'rssi_median']
     df_mean['target_position'] = df_mean[['target_position_x', 'target_position_y']].apply(tuple, axis=1)
