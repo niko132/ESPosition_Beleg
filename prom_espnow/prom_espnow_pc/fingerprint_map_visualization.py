@@ -10,8 +10,8 @@ from scipy.interpolate import Rbf
 import matplotlib.cm as cm
 import matplotlib
 
-current_file = "2024_12_12_11_31_48_Pixel9_eval_1_filtered.csv"
-filepath = "./fingerprint_maps/" + current_file
+current_file = "2024_12_13_17_06_37_iPhone_1_filtered.csv"
+filepath = "./fingerprint_maps/13_12_24/" + current_file
 
 df = pd.read_csv(filepath, index_col=False)
 df_mean = df.groupby(['monitor_mac', 'target_position_x', 'target_position_y', 'anchor_position_x', 'anchor_position_y'], as_index=False).agg({'rssi':['median']})
