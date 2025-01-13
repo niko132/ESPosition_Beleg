@@ -34,6 +34,11 @@ monitor_macs_esp32 = [
     "f8b3b73303e8",
 ]
 
+monitor_macs_esp32_extra = [
+    "f8b3b734347c",
+    "08a6f7a1e5c8"
+]
+
 monitor_macs_all = monitor_macs_esp8266 + monitor_macs_esp32
 
 def filter_esp8266(df):
@@ -41,6 +46,9 @@ def filter_esp8266(df):
 
 def filter_esp32(df):
     return df[df["monitor_mac"].isin(monitor_macs_esp32)]
+
+def filter_common_monitors(df):
+    return df[~df["monitor_mac"].isin(monitor_macs_esp32_extra)]
 
 
 def path_loss_model(distance, rssi_0, n):
