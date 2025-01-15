@@ -41,6 +41,19 @@ monitor_macs_esp32_extra = [
 
 monitor_macs_all = monitor_macs_esp8266 + monitor_macs_esp32
 
+monitor_friendly_names = {
+    "483fda467e7a": "Monitor 1 (ESP8266)",
+    "d8bfc0117c7d": "Monitor 2 (ESP8266)",
+    "24a1602ccfab": "Monitor 3 (ESP8266)",
+    "a4cf12fdaea9": "Monitor 4 (ESP8266)",
+    "a0a3b3ff35c0": "Monitor 5 (ESP32)",
+    "f8b3b734347c": "Monitor 6 (ESP32)",
+    "a0a3b3ff66b4": "Monitor 7 (ESP32)",
+    "08a6f7a1e5c8": "Monitor 8 (ESP32)",
+    "f8b3b732fb6c": "Monitor 9 (ESP32)",
+    "f8b3b73303e8": "Monitor 10 (ESP32)"
+}
+
 def filter_esp8266(df):
     return df[df["monitor_mac"].isin(monitor_macs_esp8266)]
 
