@@ -1,0 +1,26 @@
+CONSTANTS:
+    WIFI_CHANNEL = 1
+
+FUNCTION initialize_wifi():
+    Set WiFi mode to "Station"
+    Set WiFi channel to WIFI_CHANNEL
+    Initialize ESP-NOW
+    Register esp_now_callback as the callback function for incoming ESP-NOW messages
+
+FUNCTION esp_now_callback(srcMac, incomingData, length):
+    IF length is not correct:
+        RETURN  // Ignore invalid packets
+
+    Extract target MAC address from the first 6 bytes of incomingData
+    Extract RSSI from the remaining bytes of incomingData
+
+    Print the source and target devices MAC address
+    Print a delimeter
+    Print the RSSI value
+
+FUNCTION main():
+    Initialize serial communication
+    initialize_wifi()
+    
+    WHILE true:
+        Do nothing  // wait for callback calls

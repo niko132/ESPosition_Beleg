@@ -1,0 +1,75 @@
+CONSTANTS:
+    WIFI_CHANNEL = 1
+    MAC_ESP_NOW = { FF:FF:FF:FF:FF:FF }  // Broadcast address
+    TARGET_MACS = [
+        { 11:11:11:11:11:11 },  // Target 1
+        { 22:22:22:22:22:22 },  // Target 2
+        { 33:33:33:33:33:33 }   // Target 3
+    ]
+    QUEUE_SIZE = 100
+
+GLOBAL VARIABLES:
+    queue = LockFreeQueue of size QUEUE_SIZE
+
+FUNCTION initialize_wifi():
+    Set WiFi mode to "Station"
+    Set WiFi channel to WIFI_CHANNEL
+    Initialize ESP-NOW
+    Add peer for ESP-NOW communication (MAC_ESP_NOW)
+    Enable promiscuous mode with promiscuous_callback as the callback
+
+FUNCTION get_sender_mac(packet):
+    Extract sender MAC address from packet header
+    RETURN sender MAC address
+
+FUNCTION is_target_mac(mac):
+    FOR each target_mac IN TARGET_MACS:
+        IF mac matches target_mac:
+            RETURN true
+    RETURN false
+
+FUNCTION promiscuous_callback(packet):
+    sender_mac = get_sender_mac(packet)
+    rssi = packet.signal_strength
+    IF is_target_mac(sender_mac):
+        Enqueue { sender_mac, rssi } into queue
+
+FUNCTION send_rssi_data(packet_info):
+    message = Combine packet_info.sender_mac and packet_info.rssi
+    Send message to MAC_ESP_NOW using ESP-NOW
+
+FUNCTION main():
+    initialize_wifi()
+
+    WHILE true:
+        IF queue is not empty:
+            packet_info = queue.dequeue()
+            IF packet_info is valid:
+                send_rssi_data(packet_info)
+
+CLASS LockFreeQueue:
+    VARIABLES:
+        queue = Array of size QUEUE_SIZE
+        head = 0
+        tail = 0
+
+    FUNCTION enqueue(item):
+        next_position = (head + 1) % QUEUE_SIZE
+        IF next_position == tail:
+            RETURN false  // Queue is full
+        queue[head] = item
+        head = next_position
+        RETURN true
+
+    FUNCTION dequeue():
+        IF head == tail:
+            RETURN false  // Queue is empty
+        item = queue[tail]
+        tail = (tail + 1) % QUEUE_SIZE
+        RETURN item
+
+    FUNCTION is_empty():
+        RETURN head == tail
+
+    FUNCTION is_full():
+        RETURN (head + 1) % QUEUE_SIZE == tail

@@ -1,0 +1,61 @@
+CONSTANTS:
+    HEATMAP_RESOLUTION = 5.0  // Grid resolution for fingerprinting
+
+FUNCTION trilateration(monitorPositions, rssis, modelParams):
+    distances = []
+    positions = []
+    
+    FOR EACH monitor IN rssis:
+        IF monitor exists in monitorPositions AND modelParams:
+            position = monitorPositions[monitor]
+            rssi = rssis[monitor]
+            model = modelParams[monitor]
+            distance = get_distance_from_path_loss_model(rssi, model)
+            
+            Add position to positions
+            Add distance to distances
+    
+    IF number of positions < 2:
+        RETURN None  // Insufficient data
+    
+    initialGuess = average_position(positions)
+    
+    Optimize targetPosition to minimize:
+        residual = sqrt((x - px)^2 + (y - py)^2) - d
+        For each position (px, py) and distance d in positions, distances
+    
+    RETURN optimized targetPosition
+
+FUNCTION weighted_centroid(monitorPositions, rssis, modelParams, weightFunction):
+    positions = []
+    weights = []
+    
+    FOR EACH monitor IN rssis:
+        IF monitor exists in monitorPositions AND modelParams:
+            position = monitorPositions[monitor]
+            rssi = rssis[monitor]
+            model = modelParams[monitor]
+            weight = weightFunction(rssi, model)
+            
+            Add position to positions
+            Add weight to weights
+    
+    totalWeight = sum(weights)
+    
+    x = weighted_sum(positions.x, weights) / totalWeight
+    y = weighted_sum(positions.y, weights) / totalWeight
+    
+    RETURN (x, y)
+
+FUNCTION fingerprinting(fingerprintMaps, rssis, fingerprintMapSize):
+    heatmap = initialize_heatmap_with_zeros(fingerprintMapSize, HEATMAP_RESOLUTION)
+    
+    FOR EACH monitor IN rssis:
+        IF monitor exists in fingerprintMaps:
+            fingerprintMap = fingerprintMaps[monitor]
+            diff = fingerprintMap - rssis[monitor]
+            heatmap += compute_norm(diff)
+    
+    minPosition = find_minimum_in_heatmap(heatmap)
+    
+    RETURN minPosition
