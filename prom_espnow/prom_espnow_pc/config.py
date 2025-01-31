@@ -4,10 +4,12 @@ ENVIRONMENTS = {
     "flat": ("flat.png", 8.19),
     "apb": ("apb.png", 10.0),
     "apb_3081_scaled": ("apb_3081_scaled_fingerprints.png", 21.52),
-    "flat_scaled": ("flat_scaled_fingerprints.png", 8.19)
+    "flat_scaled": ("flat_scaled_fingerprints.png", 8.19),
+    "apb_normalized": ("apb_normalized.png", 21.52),
+    "flat_normalized": ("flat_normalized.png", 8.19),
 }
 
-CURRENT_ENV = "flat_scaled"
+CURRENT_ENV = "apb_normalized"
 
 #PATH_LOSS_L0 = -45.0 # -45.0
 #PATH_LOSS_EXP = 4.5 # 3.0
